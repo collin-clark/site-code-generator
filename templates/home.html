@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>{{ title }}</title>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+
+    <style>
+        /* Fixed card size */
+        .fixed-card {
+            width: 250px;          /* fixed width */
+            min-height: 120px;     /* uniform height */
+            display: inline-block;  /* align multiple cards side by side */
+            margin-right: 10px;
+            margin-bottom: 10px;
+            vertical-align: top;
+        }
+
+        /* Results container wraps cards */
+        #results {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-start; /* can use center if desired */
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container mt-4">
+
+    <!-- FORM -->
+    <form id="lookupForm" autocomplete="off">
+        <div class="alert alert-primary">
+            This app queries an internet server. It can be slow to retrieve results!
+        </div>
+
+        <p class="text-muted small">
+            Some cities use non-English spellings (e.g., Copenhagen = København). If nothing appears, try manual lookup at the <a href="https://unece.org/trade/cefact/unlocode-code-list-country-and-territory">UN/LOCODE</a> site.
+        </p>
+
+        <div class="form-row align-items-center">
+
+            <div class="col-sm-3 my-1">
+                <div class="input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text">City</span>
+                    </div>
+                    <input type="text" id="city" name="city" class="form-control" placeholder="Enter a city">
+                </div>
+            </div>
+
+            <div class="col-auto my-1">
+                <button class="btn btn-primary">Get Site Code</button>
+            </div>
+
+        </div>
+    </form>
+
+    <!-- SPINNER -->
+    <div id="spinner" class="text-center my-4" style="display:none;">
+        <div class="spinner-border text-primary"></div>
+        <div class="mt-2 text-muted small">Loading...</div>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="results" class="mt-3"></div>
+
+</div>
+
+<script>
+    // Debounce helper
+    function debounce(fn, delay) {
+        let timer = null;
+        return function (...args) {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
+
+    // AJAX submit handler
+    $("#lookupForm").on("submit", function (e) {
+        e.preventDefault();
+        performSearch();
+    });
+
+    // Debounced live search as user types
+    $("#city").on("input", debounce(performSearch, 500));
+
+    function performSearch() {
+        const city = $("#city").val().trim();
+        if (!city) {
+            $("#results").html("");
+            return;
+        }
+
+        $("#spinner").show();
+        $("#results").html("");
+
+        fetch(`/lookup?city=${encodeURIComponent(city)}`)
+            .then(res => res.json())
+            .then(data => {
+                $("#spinner").hide();
+
+                if (data.error) {
+                    $("#results").html(`<div class="alert alert-danger">${data.error}</div>`);
+                    return;
+                }
+
+                if (!data.site_codes.length) {
+                    $("#results").html(`<div class="alert alert-warning">No results found for "${city}".</div>`);
+                    return;
+                }
+
+                const cards = data.site_codes.map(site => `
+                    <div class="card fixed-card">
+                        <div class="card-body">
+                            <h5 class="card-title">${site.site_code}</h5>
+                            <small class="text-muted">${data.city}, ${site.state} ${site.country_code}</small>
+                        </div>
+                    </div>
+                `).join("");
+
+                $("#results").html(cards);
+            })
+            .catch(() => {
+                $("#spinner").hide();
+                $("#results").html(`<div class="alert alert-danger">Error contacting server.</div>`);
+            });
+    }
+</script>
+
+</body>
+</html>
